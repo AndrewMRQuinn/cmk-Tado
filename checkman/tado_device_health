@@ -1,0 +1,20 @@
+title: Tado
+agents: tado
+catalog: hw/tado
+license: GPLv2
+distribution: check_mk
+description:
+ This check monitors the connectivity and mounting state of Tado devices.
+ Device state is retrieved from the (undocumented) Tado API.
+ 
+ The service is in state {OK} if the device is correctly mounted, with a healthy battery,
+ and connectivity to Tado. It will change to {WARN} if the battery is low, and {CRIT}
+ in the event of a mounting/calibration error or if it loses connectivity to Tado.
+
+ The check uses the Tado special agent.
+
+inventory:
+ One service is created for each Tado device linked to the account.
+
+item:
+ The item name is Tado / <Home Name> / <Zone Name> / <Device Type> (<Device Serial Number>).
