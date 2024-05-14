@@ -14,8 +14,8 @@ import sys
 import requests
 import cmk.utils.password_store
 from collections.abc import Sequence
-from cmk.special_agents.utils.agent_common import SectionWriter, special_agent_main
-from cmk.special_agents.utils.argument_parsing import Args, create_default_argument_parser
+from cmk.special_agents.v0_unstable.agent_common import SectionWriter, special_agent_main
+from cmk.special_agents.v0_unstable.argument_parsing import Args, create_default_argument_parser
 
 
 # Dictionary of Tado device type prefixes
@@ -132,7 +132,7 @@ def agent_tado_main(args: Args) -> int:
     try:
         # Get passwords from store
         cmk.utils.password_store.replace_passwords()
-        
+
         # Get access token
         access_token = get_access_token(args.username, args.password)
 
