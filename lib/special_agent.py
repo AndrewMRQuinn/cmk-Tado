@@ -197,5 +197,9 @@ class AuthError(Exception):
 
 
 # Starting point
+def main() -> int:
+    return special_agent_main(parse_arguments, agent_tado_main)
+
+
 if __name__ == "__main__":
-    sys.exit(special_agent_main(parse_arguments, agent_tado_main))
+    sys.exit(main())
