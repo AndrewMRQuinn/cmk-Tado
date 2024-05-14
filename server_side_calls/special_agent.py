@@ -10,34 +10,40 @@
 # If not, see <https://www.gnu.org/licenses/>.
 
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
+from pydantic import BaseModel
 from cmk.server_side_calls.v1 import (
     HostConfig,
-    noop_parser,
     Secret,
     SpecialAgentCommand,
     SpecialAgentConfig,
 )
 
 
+# Paramenter validation
+class TadoParams(BaseModel):
+    username: str
+    password: Secret
+    filters: dict[str, str] | None = None
+
+
 # Get params from WATO form
-def agent_tado_arguments(params: Mapping[str, object], hostconfig: HostConfig) -> Iterable[SpecialAgentCommand]:
-    assert isinstance(secret := params["password"], Secret)
+def agent_tado_arguments(params: TadoParams, hostconfig: HostConfig) -> Iterable[SpecialAgentCommand]:
     args: list[str | Secret] = [
-        "--username", str(params["username"]),
-        "--password", secret.unsafe()
+        "--username", params.username,
+        "--password-id", params.password
     ]
-    if "filters" in params:
-        if "home" in params["filters"]:
-            args.extend(["--home", str(params["filters"]["home"])])
-        if "zone" in params["filters"]:
-            args.extend(["--zone", str(params["filters"]["zone"])])
+    if params.filters is not None:
+        if "home" in params.filters:
+            args.extend(["--home", str(params.filters["home"])])
+        if "zone" in params.filters:
+            args.extend(["--zone", str(params.filters["zone"])])
     yield SpecialAgentCommand(command_arguments=args)
 
 
 # Register special agent
 special_agent_tado = SpecialAgentConfig(
     name="tado",
-    parameter_parser=noop_parser,
+    parameter_parser=TadoParams.model_validate,
     commands_function=agent_tado_arguments
 )

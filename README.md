@@ -2,9 +2,15 @@
 
 This plugin monitors the connectivity, calibration, and battery state of Tado devices using Tado's (unsupported) public API.
 
+## Compatibility
+| Tado Plugin Version | Checkmk Versions |
+| ------------------- | ---------------- |
+| 1.0.0               | 2.1.0, 2.2.0     |
+| 1.1.0               | 2.3.0            |
+
 ## Installation
 
-Download the packaged MKP file and install it in Checkmk from **Setup > Maintenance > Extension packages** (Enterprise & Cloud editions only) or at the command line using `mkp install tado-1.0.0`
+Download the packaged MKP file and install it in Checkmk from **Setup > Maintenance > Extension packages** (Enterprise & Cloud editions only) or at the command line using `mkp install tado-1.1.0`
 
 _Please refer to [Checkmk's documentation](https://docs.checkmk.com/latest/en/mkps.html) for further information about extension packages._
 

@@ -12,7 +12,9 @@
 
 import sys
 import requests
-import cmk.utils.password_store
+import string
+from pathlib import Path
+from cmk.utils import password_store
 from collections.abc import Sequence
 from cmk.special_agents.v0_unstable.agent_common import SectionWriter, special_agent_main
 from cmk.special_agents.v0_unstable.argument_parsing import Args, create_default_argument_parser
@@ -100,7 +102,8 @@ def get_tado_zones(home_id: int, access_token: str) -> list[dict]:
 # Check device details
 def check_device(device: dict) -> str:
     # Get device type description
-    device_prefix = "".join([i for i in device["deviceType"] if not i.isdigit()])
+    remove_numbers = str.maketrans("", "", string.digits)
+    device_prefix = device["deviceType"].translate(remove_numbers)
     device_type = DEVICE_PREFIXES.get(device_prefix, "Device")
 
     # Default status is good if we do not find problems
@@ -130,11 +133,20 @@ def check_device(device: dict) -> str:
 # Run special agent
 def agent_tado_main(args: Args) -> int:
     try:
-        # Get passwords from store
-        cmk.utils.password_store.replace_passwords()
+        password = None
+        # Get password from command line
+        if args.password is not None:
+            password = args.password
+        # Get password from store
+        elif args.password_id is not None:
+            pw_id, pw_path = args.password_id.split(":")
+            password = password_store.lookup(Path(pw_path), pw_id)
+        # Username and/or password was not provided
+        if password is None or args.username is None:
+             raise AuthError("A Tado username and password is required")
 
         # Get access token
-        access_token = get_access_token(args.username, args.password)
+        access_token = get_access_token(args.username, password)
 
         # Get account details
         account = get_tado_account(access_token)
@@ -186,6 +198,7 @@ def parse_arguments(argv: Sequence[str]) -> Args:
     parser = create_default_argument_parser(description=__doc__)
     parser.add_argument("-u", "--username", default=None, help="Tado username")
     parser.add_argument("-p", "--password", default=None, help="Tado password")
+    parser.add_argument("-i", "--password-id", default=None, help="Password store reference for Tado login")
     parser.add_argument("-o", "--home", default=None, help="Limit monitoring to the specified home")
     parser.add_argument("-z", "--zone", default=None, help="Limit monitoring to the specified zone")
     return parser.parse_args(argv)
