@@ -2,11 +2,25 @@
 
 This plugin monitors the connectivity, calibration, and battery state of Tado devices using Tado's (unsupported) public API.
 
+## Compatibility
+| Tado Plugin Version | Checkmk Versions |
+| ------------------- | ---------------- |
+| 1.0.0               | 2.1.0, 2.2.0     |
+| 1.1.0               | 2.3.0            |
+
 ## Installation
 
-Download the packaged MKP file and install it in Checkmk from **Setup > Maintenance > Extension packages** (Enterprise & Cloud editions only) or at the command line using `mkp install tado-1.0.0`
+Download the packaged MKP file and install it in Checkmk from **Setup > Maintenance > Extension packages** (Enterprise & Cloud editions only) or at the command line using `mkp install tado-1.1.0`
 
 _Please refer to [Checkmk's documentation](https://docs.checkmk.com/latest/en/mkps.html) for further information about extension packages._
+
+## Updating
+After updating to v1.1.0 you may receive a warning message similar to the following when applying changes:
+```
+Config creation for special agent tado failed on host: 1 validation error for TadoParams password.0 Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='password', input_type=str] For further information visit https://errors.pydantic.dev/2.5/v/int_parsing
+```
+This occurs because of a change to the way passwords are stored in Checkmk 2.3.0. The password will be migrated to the new format automatically the next time the rule is saved.
+From **Setup > Agents > Other integrations > Hardware > Tado**, edit the affected rule, and click **Save**. You do not need to make any changes to the rule. The next time you activate changes the warning should disappear.
 
 ## Configuration
 

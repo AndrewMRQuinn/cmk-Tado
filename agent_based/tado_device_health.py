@@ -10,8 +10,7 @@
 # If not, see <https://www.gnu.org/licenses/>.
 
 
-from .agent_based_api.v1 import register, Result, Service, State
-from .agent_based_api.v1.type_defs import StringTable
+from cmk.agent_based.v2 import AgentSection, CheckPlugin, Result, Service, State, StringTable
 
 
 # Parse function
@@ -43,12 +42,12 @@ def check_tado_device_health(item: str, section: dict) -> Result:
 
 
 # Register with Checkmk
-register.agent_section(
+agent_section_tado = AgentSection(
     name = "tado_device_health",
     parse_function = parse_tado_device_health,
 )
 
-register.check_plugin(
+check_plugin_tado = CheckPlugin(
     name = "tado_device_health",
     service_name = "Tado / %s",
     discovery_function = discover_tado_device_health,
