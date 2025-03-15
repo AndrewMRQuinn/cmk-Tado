@@ -14,30 +14,29 @@ from collections.abc import Iterable
 from pydantic import BaseModel
 from cmk.server_side_calls.v1 import (
     HostConfig,
-    Secret,
     SpecialAgentCommand,
     SpecialAgentConfig,
 )
+import cmk.utils.paths
 
 
 # Paramenter validation
 class TadoParams(BaseModel):
-    username: str
-    password: Secret
-    filters: dict[str, str] | None = None
+    home: str | None = None
+    zone: str | None = None
+    tokenid: str | None = None
 
 
 # Get params from WATO form
 def agent_tado_arguments(params: TadoParams, hostconfig: HostConfig) -> Iterable[SpecialAgentCommand]:
-    args: list[str | Secret] = [
-        "--username", params.username,
-        "--password-id", params.password
-    ]
-    if params.filters is not None:
-        if "home" in params.filters:
-            args.extend(["--home", str(params.filters["home"])])
-        if "zone" in params.filters:
-            args.extend(["--zone", str(params.filters["zone"])])
+    args: list = []
+    args.extend(["--name", str(hostconfig.name)])
+    if params.home is not None:
+        args.extend(["--home", str(params.home)])
+    if params.zone is not None:
+        args.extend(["--zone", str(params.zone)])
+    if params.tokenid is not None:
+        args.extend(["--tokenid", str(params.tokenid)])
     yield SpecialAgentCommand(command_arguments=args)
 
 

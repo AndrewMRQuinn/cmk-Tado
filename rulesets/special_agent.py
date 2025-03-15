@@ -10,71 +10,59 @@
 # If not, see <https://www.gnu.org/licenses/>.
 
 
-from cmk.rulesets.v1 import Title, Help
+from cmk.rulesets.v1 import Title, Help, Message
 from cmk.rulesets.v1.form_specs import (
     DictElement,
     Dictionary,
-    migrate_to_password,
-    Password,
     String,
 )
-from cmk.rulesets.v1.form_specs.validators import LengthInRange
+from cmk.rulesets.v1.form_specs.validators import MatchRegex
 from cmk.rulesets.v1.rule_specs import SpecialAgent, Topic
 
 
 # Define form fields
 def _form_spec() -> Dictionary:
     return Dictionary(
-        title=Title("Tado"),
+        title=Title("Tado (Advanced)"),
         help_text=Help("Requests data about device health in Tado zones."),
         elements={
-            "username": DictElement(
+            "home": DictElement(
                 parameter_form=String(
-                    title=Title("Username"),
-                    help_text=Help("The username for your Tado account."),
-                    custom_validate=(LengthInRange(min_value=1),)
-                ),
-                required=True
-            ),
-            "password": DictElement(
-                parameter_form=Password(
-                    title=Title("Password"),
-                    help_text=Help("The password for your Tado account."),
-                    custom_validate=(LengthInRange(min_value=1),),
-                    migrate=migrate_to_password
-                ),
-                required=True
-            ),
-            "filters": DictElement(
-                parameter_form=Dictionary(
-                    title=Title("Filters"),
+                    title=Title("Filter by Home"),
                     help_text=Help(
-                        "Only monitor devices from the specified home and/or zone. "
-                        "By default, all homes and zones in your account will be monitored."
+                        "Only monitor devices from the specified home. "
+                        "By default, all homes will be monitored."
+                    )
+                ),
+                required=False
+            ),
+            "zone": DictElement(
+                parameter_form=String(
+                    title=Title("Filter by Zone"),
+                    help_text=Help(
+                        "Only monitor devices from the specified zone. "
+                        "By default, all zones will be monitored."
+                    )
+                ),
+                required=False
+            ),
+            "tokenid": DictElement(
+                parameter_form=String(
+                    title=Title("Custom Token ID"),
+                    help_text=Help(
+                        "If you have multiple Tado rules targeting the same host, they will share the same access token. "
+                        "Give the rules custom token IDs if you need them to use different Tado accounts. "
+                        "It doesn't matter what you choose as an ID as long as each Tado account on a host uses a different one. "
+                        "If you don't require multiple Tado accounts per host you can ignore this setting and leave it empty. "
                     ),
-                    elements={
-                        "home": DictElement(
-                            parameter_form=String(
-                                title=Title("Filter by Home"),
-                                help_text=Help(
-                                    "Only monitor devices from the specified home. "
-                                    "By default, all homes will be monitored."
-                                )
-                            ),
-                            required=False
-                        ),
-                        "zone": DictElement(
-                            parameter_form=String(
-                                title=Title("Filter by Zone"),
-                                help_text=Help(
-                                    "Only monitor devices from the specified zone. "
-                                    "By default, all zones will be monitored."
-                                )
-                            ),
-                            required=False
+                    custom_validate=[
+                        MatchRegex(
+                            regex="^[a-zA-Z0-9]+$",
+                            error_msg=Message("Only alphanumeric characters are supported"),
                         )
-                    }
-                )
+                    ]
+                ),
+                required=False
             )
         }
     )
