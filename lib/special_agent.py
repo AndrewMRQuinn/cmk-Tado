@@ -13,11 +13,12 @@
 import sys
 import requests
 import string
-from pathlib import Path
-from cmk.utils import password_store
+import json
+from datetime import datetime
 from collections.abc import Sequence
 from cmk.special_agents.v0_unstable.agent_common import SectionWriter, special_agent_main
 from cmk.special_agents.v0_unstable.argument_parsing import Args, create_default_argument_parser
+import cmk.utils.paths
 
 
 # Dictionary of Tado device type prefixes
@@ -49,38 +50,115 @@ DEVICE_PREFIXES = {
 }
 
 # Tado API details
-# This not offically suported - details found via openHAB Tado binding
-# https://github.com/openhab/openhab-addons/tree/main/bundles/org.openhab.binding.tado
-TADO_AUTH_URL = "https://auth.tado.com/oauth/token"
+# https://support.tado.com/en/articles/8565472-how-do-i-authenticate-to-access-the-rest-api
+TADO_DEVICE_AUTH_URL = "https://login.tado.com/oauth2/device_authorize"
+TADO_TOKEN_AUTH_URL = "https://login.tado.com/oauth2/token"
 TADO_API_URL = "https://my.tado.com/api/v2"
-TADO_OAUTH_SCOPE = "home.user"
-TADO_OAUTH_GRANT = "password"
-TADO_CLIENT_ID = "public-api-preview"
-TADO_CLIENT_SECRET = "4HJGRffVR8xb3XdEUQpjgZ1VplJi6Xgw"
+TADO_OAUTH_SCOPE = "offline_access"
+TADO_DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+TADO_TOKEN_GRANT = "refresh_token"
+TADO_CLIENT_ID = "1bb50063-6b0c-4d11-bd99-387f4a91cc46"
+
+# Stop using device codes or access tokens when they are this many seconds from expiry
+DEVICE_CODE_GRACE = 60
+ACCESS_TOKEN_GRACE = 30
+
+# Class to handle persistent data
+class PersistentStore:
+    def __init__(self, name, tokenid):
+        # Construct data file path
+        self.data_file = "tado"
+        if name is not None:
+            self.data_file = f"{self.data_file}-{name}"
+        if tokenid is not None:
+            self.data_file = f"{self.data_file}-{tokenid}"
+        self.data_file = f"{cmk.utils.paths.var_dir}/{self.data_file}.json"
+        # Load persistent values from data file
+        try:
+            with open(self.data_file, "r") as file:
+                data = (json.load(file))
+            self.device_code = data.get("device_code")
+            self.device_code_url = data.get("device_code_url")
+            self.device_code_expiry = data.get("device_code_expiry")
+            self.access_token = data.get("access_token")
+            self.access_token_expiry = data.get("access_token_expiry")
+            self.refresh_token = data.get("refresh_token")
+        except:
+            self.device_code = None
+            self.device_code_url = None
+            self.device_code_expiry = None
+            self.access_token = None
+            self.access_token_expiry = None
+            self.refresh_token = None
+
+    # Save data to file
+    def save(self):
+        with open(self.data_file, 'w') as file:
+            json.dump({
+                "device_code": self.device_code,
+                "device_code_url": self.device_code_url,
+                "device_code_expiry": self.device_code_expiry,
+                "access_token": self.access_token,
+                "access_token_expiry": self.access_token_expiry,
+                "refresh_token": self.refresh_token
+            }, file)
+
+
+# Start device code grant flow
+def start_device_flow(store: PersistentStore) -> str:
+    headers = {
+        "User-Agent": "Checkmk/Tado",
+    }
+    body = {
+        "client_id": TADO_CLIENT_ID,
+        "scope": TADO_OAUTH_SCOPE
+    }
+    response = requests.post(TADO_DEVICE_AUTH_URL, data=body, headers=headers)
+    # Check for error response
+    response.raise_for_status()
+    # Save persistent values for next run
+    response_json = response.json()
+    store.device_code = response_json.get("device_code")
+    store.device_code_url = response_json.get("verification_uri_complete")
+    store.device_code_expiry = datetime.now().timestamp() + response_json.get("expires_in", 0) - DEVICE_CODE_GRACE
+    store.save()
 
 
 # Get Tado access token
-def get_access_token(username: str, password: str) -> str:
+def get_access_token(store: PersistentStore, body: dict) -> str:
     headers = {
         "User-Agent": "Checkmk/Tado",
         "Content-Type": "application/x-www-form-urlencoded"
     }
-    body = {
-        "client_id": TADO_CLIENT_ID,
-        "client_secret": TADO_CLIENT_SECRET,
-        "scope": TADO_OAUTH_SCOPE,
-        "grant_type": TADO_OAUTH_GRANT,
-        "username": username,
-        "password": password
-    }
-    response = requests.post(TADO_AUTH_URL, data=body, headers=headers)
-    # Check for authentication failure
-    if response.status_code == 400:
-        raise AuthError("Tado username/password is incorrect")
+    response = requests.post(TADO_TOKEN_AUTH_URL, data=body, headers=headers)
     # Check for error response
     response.raise_for_status()
-    # Return access token
-    return response.json()["access_token"]
+    # Save persistent values for next run
+    response_json = response.json()
+    store.access_token = response_json.get("access_token")
+    store.access_token_expiry = datetime.now().timestamp() + response_json.get("expires_in", 0) - ACCESS_TOKEN_GRACE
+    store.refresh_token = response_json.get("refresh_token")
+    store.save()
+
+
+# Get Tado access token using a device code
+def auth_device_code(store: PersistentStore) -> str:
+    body = {
+        "client_id": TADO_CLIENT_ID,
+        "device_code": store.device_code,
+        "grant_type": TADO_DEVICE_GRANT
+    }
+    get_access_token(store, body)
+
+
+# Get Tado access token using a refresh token
+def auth_refresh_token(store: PersistentStore):
+    body = {
+        "client_id": TADO_CLIENT_ID,
+        "refresh_token": store.refresh_token,
+        "grant_type": TADO_TOKEN_GRANT
+    }
+    get_access_token(store, body)
 
 
 # Call Tado API
@@ -141,24 +219,36 @@ def check_device(device: dict) -> str:
 
 # Run special agent
 def agent_tado_main(args: Args) -> int:
+    store = PersistentStore(args.name, args.tokenid)
     try:
-        password = None
-        # Get password from command line
-        if args.password is not None:
-            password = args.password
-        # Get password from store
-        elif args.password_id is not None:
-            pw_id, pw_path = args.password_id.split(":")
-            password = password_store.lookup(Path(pw_path), pw_id)
-        # Username and/or password was not provided
-        if password is None or args.username is None:
-             raise AuthError("A Tado username and password is required")
+        # Use refresh token if access token has expired
+        now = datetime.now().timestamp()
+        if store.access_token is not None and store.access_token_expiry is not None and store.refresh_token is not None and store.access_token_expiry < now:
+            try:
+                auth_refresh_token(store)
+            except:
+                store.access_token = None
 
-        # Get access token
-        access_token = get_access_token(args.username, password)
+        # Use device code grant flow if neither access token or refresh token works
+        if store.access_token is None:
+            # We have a device code - check if the user has authenticated
+            if store.device_code is not None and store.device_code_url is not None and store.device_code_expiry > now:
+                try:
+                    auth_device_code(store)
+                except:
+                    store.access_token = None
+                # The user hasn't authenticated - prompt again
+                if (store.access_token is None):
+                    sys.stderr.write(f"Log in at {store.device_code_url} to authorise access to Tado")
+                    return 1
+            # Get a new device code and prompt the user to authenticate
+            else:
+                start_device_flow(store)
+                sys.stderr.write(f"Log in at {store.device_code_url} to authorise access to Tado")
+                return 1
 
         # Get account details
-        account = get_tado_account(access_token)
+        account = get_tado_account(store.access_token)
 
         # Define section header
         with SectionWriter("tado_device_health", separator="|") as writer:
@@ -167,8 +257,8 @@ def agent_tado_main(args: Args) -> int:
                 # Check if we want to monitor this home
                 if args.home is None or args.home.lower() == home["name"].lower():
                     # Get all Tado devices and zones in this home
-                    devices = get_tado_devices(home["id"], access_token)
-                    zones = get_tado_zones(home["id"], access_token)
+                    devices = get_tado_devices(home["id"], store.access_token)
+                    zones = get_tado_zones(home["id"], store.access_token)
 
                     # Iterate over each zone
                     for zone in zones:
@@ -205,11 +295,10 @@ def agent_tado_main(args: Args) -> int:
 # Parse arguments
 def parse_arguments(argv: Sequence[str]) -> Args:
     parser = create_default_argument_parser(description=__doc__)
-    parser.add_argument("-u", "--username", default=None, help="Tado username")
-    parser.add_argument("-p", "--password", default=None, help="Tado password")
-    parser.add_argument("-i", "--password-id", default=None, help="Password store reference for Tado login")
+    parser.add_argument("-n", "--name", default=None, help="The name of the host")
     parser.add_argument("-o", "--home", default=None, help="Limit monitoring to the specified home")
     parser.add_argument("-z", "--zone", default=None, help="Limit monitoring to the specified zone")
+    parser.add_argument("-t", "--tokenid", default=None, help="Custom ID for saving auth token")
     return parser.parse_args(argv)
 
 
