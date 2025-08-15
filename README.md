@@ -9,7 +9,7 @@ Versions of the plugin prior to 1.3.0 will not work after this date. Review the 
 | Tado Plugin Version | Checkmk Versions |
 | ------------------- | ---------------- |
 | 1.0.0               | 2.1.0, 2.2.0     |
-| 1.1.0 - 1.3.0       | 2.3.0            |
+| 1.1.0 - 1.3.0       | 2.3.0, 2.4.0     |
 
 ## Installation
 
