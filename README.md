@@ -2,6 +2,26 @@
 
 This plugin monitors the connectivity, calibration, and battery state of Tado devices using Tado's (unsupported) public API.
 
+## API Limits
+Announced in September 2025, Tado will apply the following API rate limits:
+- Users with an auto-assist subscription: 20,000 requests /day
+- Users without an auto-assist subscription: 100 requests /day
+
+This plugin generates the following requests each time Checkmk runs a check:
+- 1 request to find homes in your account
+- 1 request per home to get (all) zone information
+- 1 request per home to get (all) device information
+- It is unclear if authentication counts as a request
+
+The number of devices should not affect the number of requests, unless they are distributed across multiple homes.
+
+By default, Checkmk will check once every minute. While a single home should fall well within the API limit for an auto-assist subscriber, it will easily exceed the 100 requests for people without a subscription; and these requests are assumed to be cumulative with other automation platforms you may be using.
+
+If impacted by Tado's API limits, you may reduce the check interval in Checkmk at **Setup > Services > Service monitoring rules** by creating rules for **Normal check interval** and **Retry check interval** to keep it under your limit.<br>
+Targeting services that match `^Tado .+` should apply the rules to all Tado devices in Checkmk.
+
+See https://help.tado.com/en/articles/12165739-limitation-for-rest-api-usage for further information about Tado's API limits.
+
 ## Compatibility
 Note: From 21st March 2025 Tado's API will require the use of the device code grant flow. Usernames and passwords stored in Checkmk can no longer be used.<br>
 Versions of the plugin prior to 1.3.0 will not work after this date. Review the **Updating** section below for more details.
